@@ -1,13 +1,19 @@
 '''
-@Version: 0.0.1
-@Author: ider
-@Date: 2019-08-10 17:08:38
+@Version: 0.0.1a
+@Author: ider, tomate
 @LastEditors: ider
-@LastEditTime: 2019-08-10 18:27:10
-@Description: 远程转换 pdf2html
+@Description: pdf2htmlEX API
 '''
 
-import os, time, zipfile, tempfile, uuid, shutil, subprocess, json,datetime
+import os
+import time
+import zipfile
+import tempfile
+import uuid
+import shutil
+import subprocess
+import json
+import datetime
 from flask import Flask, request, send_from_directory, send_file
 from werkzeug.utils import secure_filename
 from concurrent.futures import ThreadPoolExecutor
@@ -16,16 +22,16 @@ from file_compress import compress
 
 app = Flask(__name__)
 
-TIMEOUT = int(os.environ.get('TIMEOUT',60*60*24))
-POOL_SIZE = os.environ.get('POOL_SIZE',1)
+TIMEOUT = int(os.environ.get('TIMEOUT', 60*60*24))
+POOL_SIZE = os.environ.get('POOL_SIZE', 1)
 # chrome 提前转换 pdf
 PDF2PDF = os.environ.get('PDF2PDF')
 # 是否转换压缩 png 图片，html, 默认 是
-WEBP_FLAG = os.environ.get('WEBP',True)
+WEBP_FLAG = os.environ.get('WEBP', True)
 
 UPLOAD_FOLDER = '/tmp'
 bin = "/usr/local/bin/pdf2htmlEX"
-ALLOWED_EXTENSIONS = set(['pdf',])
+ALLOWED_EXTENSIONS = set(['pdf'])
 
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -38,9 +44,11 @@ app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SECRET_KEY'] = os.urandom(24)
 app.config['COUNT'] = 0
 
+
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 @app.route('/pdf2htmlEX', methods=['GET', 'POST'])
 def upload_file():
@@ -54,7 +62,7 @@ def upload_file():
 
         if file and allowed_file(file.filename):
             filename = file.filename
-            pdf_folder_uuid =  str(uuid.uuid4())
+            pdf_folder_uuid = str(uuid.uuid4())
             pdf_floder_path = os.path.join(app.config['UPLOAD_FOLDER'], pdf_folder_uuid)
             pdf_path = os.path.join(pdf_floder_path, filename)
             os.mkdir(pdf_floder_path)
@@ -66,14 +74,15 @@ def upload_file():
                 app.config['executor_file'].submit(shutil.rmtree, pdf_floder_path)
             except Exception as e:
                 app.config['executor_file'].submit(shutil.rmtree, pdf_floder_path)
-                return str(e),500
+                return str(e), 500
             remove_old_fold(app.config['UPLOAD_FOLDER'])
             app.config['COUNT'] += 1
-            return send_file(fp,as_attachment=True,attachment_filename='%s.zip'%filename.split('.')[0])
+            return send_file(fp, as_attachment=True, attachment_filename=filename.split('.')[0] + '.zip')
             # return "ok" + command, 200
     elif request.method == 'GET':
-        return 'Completing %s document conversions'%app.config['COUNT']
+        return 'Completing ' + app.config['COUNT'] + ' document conversions'
     return "unknow error", 500
+
 
 def pdf2pdf(pdf2_path):
     files = {'file': open(pdf2_path, 'rb')}
@@ -84,20 +93,20 @@ def pdf2pdf(pdf2_path):
     elif req.status_code != 200:
         print(req.text)
         return False
-    with open(pdf2_path,'wb')as f:
+    with open(pdf2_path, 'wb')as f:
         f.write(req.content)
     return True
 
 
-def pdf2htmlEX(pdf_path,command):
-    out_folder_uuid =  str(uuid.uuid4())
+def pdf2htmlEX(pdf_path, command):
+    out_folder_uuid = str(uuid.uuid4())
     folder_path = os.path.join(app.config['UPLOAD_FOLDER'], out_folder_uuid)
     os.mkdir(folder_path)
-    cmd = [bin,]
+    cmd = [bin]
     if command:
         cmd.extend(command.split(' '))
 
-    cmd.extend(['--dest-dir',folder_path,pdf_path])
+    cmd.extend(['--dest-dir', folder_path, pdf_path])
 
     # 只有一个的队列
     # if os.path.getsize(pdf_path) > 2 * 1024 * 1024:
@@ -121,7 +130,7 @@ def pdf2htmlEX(pdf_path,command):
                     continue
                 if WEBP_FLAG:
                     file_path = compress(file_path)
-                myzip.write(file_path,arcname=file_path.replace(folder_path,'').lstrip('/'))
+                myzip.write(file_path, arcname=file_path.replace(folder_path,'').lstrip('/'))
     app.config['executor_file'].submit(shutil.rmtree, folder_path)
     fp.seek(0)
     return fp
