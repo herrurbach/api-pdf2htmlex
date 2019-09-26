@@ -1,1 +1,4 @@
-test
+.DS-lite
+.Python
+env
+.vscode
