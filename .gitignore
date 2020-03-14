@@ -2,3 +2,4 @@
 .Python
 env
 .vscode
+.DS_Store
